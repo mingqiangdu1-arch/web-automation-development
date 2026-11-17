@@ -47,6 +47,7 @@ flowchart TD
 ## 验证状态
 
 - **已完成**：8 个合成场景的离线决策检查；2026-11-17 在 Playwright TodoMVC 和 Sauce Labs The Internet 上进行了 8 项单次页面终态冒烟检查，所选页面行为均得到预期结果。具体操作和异常见[第一轮在线验证记录](evaluation/online-smoke-2026-11-17.md)。
+- **评测工具已提供，未实测完成**：基于现有上游任务的 [Codex A/B 本地运行器与独立判分器](evaluation/agent-ab-protocol.md)，支持先做 4 个任务 × 2 组 × 2 次的试点。当前托管环境的浏览器与 Codex 子进程均有系统级限制，详情见[可行性诊断](evaluation/pilot-feasibility-2026-11-17.md)；没有有效的 A/B 结果可报告。
 - **尚未完成**：独立的 Skill 自动触发验证、无 Skill/有 Skill 对照实验、Token/成本量化、API/UI 混合路线及服务端写入异常恢复的实际验证。
 
 **不要将 8/8 页面检查理解为 Skill 的任务成功率或提效证据。** 这份 Skill 目前是 `v0.1.0` 初始公开版的工程指南，不提供通用运行时，也不保证任何目标站点可用。第三方项目只用于研究方法和已有测试页面，未分发其代码、Skill 文本或命令脚本。见[研究与致谢](REFERENCES.md)。
