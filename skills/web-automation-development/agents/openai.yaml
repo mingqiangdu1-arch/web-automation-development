@@ -1,0 +1,4 @@
+interface:
+  display_name: "网页自动化开发指南"
+  short_description: "跨工具网页探索、API/DOM/视觉选型、结果验证与安全恢复"
+  default_prompt: "使用 $web-automation-development，结合当前网页场景和已有证据，判断需要补采什么、何时采集完成，并完成必要开发与验证。"

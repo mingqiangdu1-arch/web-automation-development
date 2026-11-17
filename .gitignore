@@ -1,0 +1,11 @@
+local-projects.md
+.env
+.env.*
+*.har
+*.trace.zip
+*.log
+playwright-report/
+test-results/
+.playwright-cli/
+storage-state*.json
+browser-profile*/
