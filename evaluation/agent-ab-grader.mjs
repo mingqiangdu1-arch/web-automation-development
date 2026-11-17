@@ -69,7 +69,9 @@ export async function gradeAgentOutput(caseId, trialDir, options = {}) {
       const cancelObserved = caseId !== 'PW-03' || (events.includes('ESCAPE') && events.includes('WRONG_EDIT_TYPED'));
       return {
         outcome: okay && noWrong && cancelObserved ? 'PASS' : 'FAIL',
-        reason: okay && noWrong && cancelObserved ? 'DOM, active counter, and edit cancellation verified' : 'Todo content/counter or cancellation evidence mismatch',
+        reason: okay && noWrong && cancelObserved
+          ? (caseId === 'PW-03' ? 'DOM, active counter, and edit cancellation verified' : 'Todo and active counter verified')
+          : (caseId === 'PW-03' ? 'Todo content/counter or cancellation evidence mismatch' : 'Todo content or active counter mismatch'),
         observed: { itemCount: text.length, itemTexts: text.slice(0, 5), activeCounter: active, cancelEvents: events },
       };
     }
@@ -111,3 +113,4 @@ if (process.argv[1]?.endsWith('agent-ab-grader.mjs') && process.argv.length > 3)
   process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
   process.exitCode = result.outcome === 'PASS' ? 0 : 1;
 }
+
