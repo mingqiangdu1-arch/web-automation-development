@@ -4,7 +4,9 @@
   "type": "module",
   "scripts": {
     "pilot": "node agent-ab-runner.mjs --cases PW-01,PW-03,TI-01,TI-03 --repeats 2",
-    "dry-run": "node agent-ab-runner.mjs --dry-run"
+    "dry-run": "node agent-ab-runner.mjs --dry-run",
+    "developer-value-pilot": "node developer-value-pilot.mjs",
+    "developer-value-dry-run": "node developer-value-pilot.mjs --dry-run"
   },
   "devDependencies": {
     "playwright": "1.62.1"
