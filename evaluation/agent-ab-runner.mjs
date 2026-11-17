@@ -189,7 +189,14 @@ async function main() {
   mkdirSync(options.outputRoot, { recursive: true });
   const batchDir = mkdtempSync(join(options.outputRoot, 'pilot-'));
   // Trial code resolves the same dependencies without seeing the evaluation rubric.
-  symlinkSync(join(evaluationDir, 'node_modules'), join(batchDir, 'node_modules'), process.platform === 'win32' ? 'junction' : 'dir');
+  const dependencySource = join(evaluationDir, 'node_modules');
+  const dependencyTarget = join(batchDir, 'node_modules');
+  try {
+    symlinkSync(dependencySource, dependencyTarget, process.platform === 'win32' ? 'junction' : 'dir');
+  } catch (error) {
+    if (!['EPERM', 'EACCES', 'ENOTSUP'].includes(error.code)) throw error;
+    cpSync(dependencySource, dependencyTarget, { recursive: true });
+  }
   const batch = { date: new Date().toISOString(), codexVersion: installed.stdout.trim(), skillSha256: hashFile(join(skillDir, 'SKILL.md')), model: options.model ?? 'CLI default (not pinned)', effort: options.effort, trials: [] };
   writeFileSync(join(batchDir, 'plan.json'), JSON.stringify({ ...batch, trialPlan, source: cases }, null, 2));
 
