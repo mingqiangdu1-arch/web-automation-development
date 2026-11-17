@@ -67,7 +67,8 @@ function taskText(baseUrl) {
 function sha(value) { return createHash('sha256').update(JSON.stringify(value)).digest('hex'); }
 
 function parseTrace(path, skillText = null) {
-  const stats = { toolCalls: 0, inputTokens: null, outputTokens: null, skillReadEvent: null };
+  const stats = { toolCalls: 0, failedCommands: 0, fileChanges: 0,
+    inputTokens: null, outputTokens: null, skillReadEvent: null };
   const paragraph = skillText?.split(/\r?\n/).find(x => x.startsWith('description:'));
   const lines = readFileSync(path, 'utf8').split(/\r?\n/);
   for (let i = 0; i < lines.length; i++) {
@@ -77,6 +78,9 @@ function parseTrace(path, skillText = null) {
     if (event.type === 'item.started' && ['command_execution', 'mcp_tool_call', 'web_search', 'file_change'].includes(item.type)) {
       stats.toolCalls++;
     }
+    if (event.type === 'item.started' && item.type === 'file_change') stats.fileChanges++;
+    if (event.type === 'item.completed' && item.type === 'command_execution' &&
+        Number.isInteger(item.exit_code) && item.exit_code !== 0) stats.failedCommands++;
     if (paragraph && event.type === 'item.completed' && item.type === 'command_execution' &&
         item.exit_code === 0 && /\b(?:Get-Content|cat|type|head|sed)\b/i.test(item.command ?? '') &&
         /web-automation-development[/\\]SKILL\.md/i.test(item.command ?? '') &&
@@ -88,6 +92,33 @@ function parseTrace(path, skillText = null) {
     if (Number.isFinite(usage?.output_tokens)) stats.outputTokens = usage.output_tokens;
   }
   return stats;
+}
+
+function compare(trials) {
+  const a = trials.find(x => x.arm === 'A');
+  const b = trials.find(x => x.arm === 'B');
+  if (!a || !b) return null;
+  const totalTokens = trial => Number.isFinite(trial.tokens?.input) && Number.isFinite(trial.tokens?.output)
+    ? trial.tokens.input + trial.tokens.output : null;
+  const delta = (vA, vB) => Number.isFinite(vA) && Number.isFinite(vB) ? vB - vA : null;
+  return {
+    interpretation: a.outcome === 'OUTPUT_PASS' && b.outcome === 'OUTPUT_PASS'
+      ? 'SAME_VERIFIED_OUTPUT_OUTCOME; review costs and process evidence'
+      : a.outcome !== 'OUTPUT_PASS' && b.outcome === 'OUTPUT_PASS'
+        ? 'B_ONLY_OUTPUT_PASS; inspect whether failure is attributable to the Skill'
+        : a.outcome === 'OUTPUT_PASS' && b.outcome !== 'OUTPUT_PASS'
+          ? 'A_ONLY_OUTPUT_PASS; investigate possible Skill regression'
+          : 'NO_VERIFIED_OUTPUT_WINNER',
+    outcome: { A: a.outcome, B: b.outcome },
+    deltaBMinusA: {
+      totalTokens: delta(totalTokens(a), totalTokens(b)),
+      toolCalls: delta(a.toolCalls, b.toolCalls),
+      failedCommands: delta(a.failedCommands, b.failedCommands),
+      wallTimeMs: delta(a.wallTimeMs, b.wallTimeMs),
+    },
+    noCausalOrGeneralBenefitClaim: true,
+    routeAndReworkReview: 'PENDING_MANUAL_TRACE_REVIEW',
+  };
 }
 
 async function jsonGet(url) {
@@ -244,7 +275,9 @@ async function main() {
       outcome: execution.exitCode === 0 && unchanged ? (grade.outcome === 'PASS' ? 'OUTPUT_PASS' : 'OUTPUT_FAIL') : 'BLOCKED',
       grade, sourceUnchanged: unchanged, nativeSkillLoaded: arm === 'A' ? 'NOT_AVAILABLE' :
         telemetry.skillReadEvent ? 'OBSERVED' : 'INCONCLUSIVE',
-      toolCalls: telemetry.toolCalls, tokens: { input: telemetry.inputTokens, output: telemetry.outputTokens },
+      toolCalls: telemetry.toolCalls, failedCommands: telemetry.failedCommands,
+      observedFileChanges: telemetry.fileChanges,
+      tokens: { input: telemetry.inputTokens, output: telemetry.outputTokens },
       idempotenceIndependentlyVerified: false,
       developmentDecisionReview: 'REQUIRES_MANUAL_TRACE_REVIEW',
       rawArtifactsDir: basename(dir) };
@@ -257,8 +290,10 @@ async function main() {
   }
   record.status = 'COMPLETE';
   record.endedAt = new Date().toISOString();
+  record.comparison = compare(record.trials);
   record.interpretation = 'One paired real-development observation, NOT a general Skill benefit claim. OUTPUT_PASS verifies the final output only, not the idempotence or the quality of all decisions. Review raw traces for route decisions, rework and manual intervention.';
   writeFileSync(join(batch, 'summary.json'), JSON.stringify(record, null, 2));
+  process.stdout.write(`Observed A/B differences (B minus A): ${JSON.stringify(record.comparison)}\n`);
   process.stdout.write(`Experiment record (private, do not commit): ${batch}\n`);
 }
 
