@@ -1,0 +1,5 @@
+# P2: Restful Booker read-only preflight
+
+A fresh Edge/Playwright context reached the official public demo and observed its Our Rooms heading. A listener was registered before navigation for same-origin GET room responses; it observed none in this single flow. This does not prove the site has no Room API. It means the current probe did not obtain an API record to compare with a UI record. API/UI identity equivalence is inconclusive.
+
+Upstream trunk resolved to `efe2deb8ce02db541adbf9d3a6604caf5fbdaae6`. The [Room README](https://github.com/mwinteringham/restful-booker-platform/blob/efe2deb8ce02db541adbf9d3a6604caf5fbdaae6/room/README.md) documents the local Room Swagger UI; use that supported contract in a disposable upstream instance for a controlled comparison. Java and Maven were not on the local command path, so the upstream stack was not built in this preflight. No active endpoint replay, shared demo write, or fault injection was performed. Unknown-write recovery and BrowserGym remain untested.
