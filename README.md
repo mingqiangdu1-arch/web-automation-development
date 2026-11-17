@@ -1,57 +1,87 @@
 # Web Automation Development · 网页自动化开发指南
 
-> 面向 Coding Agent 的跨工具网页自动化工程指南：**按需探索、按操作选路线、验证真实业务结果、安全恢复异常。**
+> **一个面向 Coding Agent 的网页自动化开发 Skill：让自动化不仅能操作页面，还能确认业务结果，并在异常时安全恢复。**
 
-`web-automation-development` 帮助 Agent 开发和维护可靠的网页自动化：决定哪些页面证据值得补采、每个业务操作适合 API、DOM 还是视觉交互、如何证明结果真正生效，以及出现异常后如何安全恢复。它不绑定特定浏览器或运行框架。
+`web-automation-development` 是一份可复用的开发指导，不是浏览器、爬虫运行时或新的自动化框架。它帮助 Agent 在开发、维护网页自动化项目时判断：需要查看哪些页面证据、每个操作适合什么技术路线、怎样确定任务真正完成，以及结果不明时如何处理。
 
-## 工作方式
+适用于使用 Codex 等 Coding Agent 开发数据采集器、企业后台流程和已有浏览器脚本的场景。**无需替换现有 Playwright、agent-browser、浏览器工具或 HTTP 客户端。**
+
+## 什么时候值得使用？
+
+| 你的任务 | 这份 Skill 重点指导什么 |
+| --- | --- |
+| 新建网页采集器 | 核对字段语义、分页终点与合法缺失；只探索实现所需页面 |
+| 自动化后台操作 | 确认账号/租户/目标记录，按步骤选择 UI 或获准的 API，并回读结果 |
+| 修复失效的浏览器流程 | 复用旧证据，定位页面变化或等待条件失效，只补必要取证 |
+| 长时间批量运行 | 定义检查点、去重与停止条件，区分完成、部分完成和阻塞 |
+
+临时截图、单次点击、纯粹解释浏览器概念，通常不需要加载完整开发 Skill。
+
+## 它如何指导 Agent？
 
 ```mermaid
 flowchart TD
-    A["业务目标与成功标准"] --> B{"现有证据足够？"}
+    A["任务目标、范围与授权"] --> B{"已有证据够用？"}
     B -->|"否"| C["定向页面取证"]
-    B -->|"是"| D["按业务操作选择路线"]
+    B -->|"是"| D["按操作选择技术路线"]
     C --> D
-    D --> E["API / HTTP"]
-    D --> F["DOM / 网络监听"]
-    D --> G["视觉交互 / 人工处理"]
-    E --> H["回读并验证业务结果"]
-    F --> H
-    G --> H
-    H --> I{"业务结果已确认？"}
-    I -->|"成功"| J["交付并复用已验证契约"]
-    I -->|"失败或不明"| K["保留证据，安全恢复或人工核查"]
+    D --> E["API / HTTP · DOM · 视觉交互"]
+    E --> F["实施并验证业务结果"]
+    F --> G{"结果能确认？"}
+    G -->|"是"| H["交付并复用已验证契约"]
+    G -->|"否或未知"| I["回读、暂停或转人工"]
 ```
 
-路线按**操作**选择，不要求整站采用同一种工具。探索只补当前必要证据；提交结果不明时先核对远端状态，不能直接重试或切换执行器补写。
+四条原则：
 
-## 核心特点
+- **按操作选路线**：一个流程可以混合获准的 API、页面 DOM 和视觉交互；不为整站固定一种执行器。
+- **按需取证**：已有可信页面契约时直接复用，只有状态变化、证据失效或关键未知时补采。
+- **验证业务结果**：页面加载、按钮点击、成功提示，都不能单独替代业务状态确认。
+- **安全处理未知写入**：提交超时或连接断开时先回读远端，不盲目重试，也不切换工具重复提交。
 
-- **操作级技术选型**：根据业务语义、授权、规模与维护成本，为不同步骤选择 API、HTTP 解析、DOM、网络响应监听或视觉交互；有证据才切换路线。
-- **最小充分页面取证**：记录身份、作用域、定位与状态契约；已有可靠证据时复用，只补影响实现的缺口。
-- **业务结果可靠性**：区分页面就绪与业务就绪、操作受理与最终生效；写入结果未知时先回读，不盲目重试或换执行器补写。
-- **长期运行与复用**：明确分页/增量完成条件、检查点与会话归属；将稳定操作按需沉淀为可维护的能力，不强制生成新 Skill。
+## 安装与开始使用
 
-适合数据采集器、后台业务流程和已有自动化的契约变化或路线评估。临时截图、单次点击等操作直接使用相应工具。小修复可复用已有证据，无需重新探索。
+1. 下载或克隆本仓库。
+2. 将 [skills/web-automation-development](skills/web-automation-development) **整个目录**复制到客户端支持的 Skills 位置。例如，Codex 项目可放在 `.agents/skills/web-automation-development/`；其他客户端按各自 Agent Skills 机制安装。
+3. 在开发任务中引用 `$web-automation-development`，或让支持自动选择 Skills 的客户端根据任务决定是否加载。
 
-## 安装与使用
+可以直接向 Agent 提出这些任务：
 
-将 [Skill 目录](skills/web-automation-development) 完整复制到支持 Agent Skills 的客户端所识别的项目或个人 Skills 目录。Codex 项目可使用 `.agents/skills/web-automation-development/`；以客户端文档为准。不要只复制 `SKILL.md`，因为它链接按需参考。
+```text
+使用 $web-automation-development，为一个允许采集的公开目录网站开发增量采集器。
+先确认字段、分页结束条件和已有可复用接口，再实现最小闭环并验证实际输出。
+```
 
-示例：使用 `$web-automation-development` 开发公开目录采集器。已有获准使用的官方列表接口，先核对字段、分页终点和最小样本；详情若未覆盖，再评估网页读取。
+```text
+使用 $web-automation-development，修复现有 Playwright 自动化中失效的列表定位。
+优先复用现有证据，只补必要页面取证，验证修复后的目标记录与完成状态。
+```
 
-更多[合成场景](examples/scenarios.md)可用于验证和回归。没有必装的浏览器或 SDK。可复用项目已有的 Playwright、Playwright CLI、agent-browser、Chrome DevTools、DrissionPage、授权 RPA、官方 SDK 或 HTTP 客户端。工具能力、参数和权限以实际环境及官方资料为准。
+```text
+使用 $web-automation-development，设计一个已授权的后台批量更新流程。
+按操作评估 API/UI 路线；保存结果未知时必须先查询业务状态，再决定后续动作。
+```
 
-探索默认只读。观察到网络请求不等于获准直接调用；写入超时应先回读业务状态。不要将凭据、会话状态或原始取证记录放入可公开的契约。
+Skill 本身**没有必装依赖**，也不会替你安装或启动浏览器。项目可以继续使用现有的 Playwright、Playwright CLI、agent-browser、DrissionPage、官方 SDK、HTTP 客户端或其他已授权工具。具体工具能力、权限和版本以运行环境为准。
 
-## 验证状态
+## 适用边界
 
-- **已完成**：8 个合成场景的离线决策检查；2026-11-17 在 Playwright TodoMVC 和 Sauce Labs The Internet 上进行了 8 项单次页面终态冒烟检查，所选页面行为均得到预期结果。具体操作和异常见[第一轮在线验证记录](evaluation/online-smoke-2026-11-17.md)。
-- **评测工具已提供，未实测完成**：基于现有上游任务的 [Codex A/B 本地运行器与独立判分器](evaluation/agent-ab-protocol.md)，支持先做 4 个任务 × 2 组 × 2 次的试点。当前托管环境的浏览器与 Codex 子进程均有系统级限制，详情见[可行性诊断](evaluation/pilot-feasibility-2026-11-17.md)；没有有效的 A/B 结果可报告。
-- **尚未完成**：独立的 Skill 自动触发验证、无 Skill/有 Skill 对照实验、Token/成本量化、API/UI 混合路线及服务端写入异常恢复的实际验证。
+- 本 Skill 不提供通用执行器、站点适配器或现成采集数据；它指导 Agent 如何开发与验证这些能力。
+- 页面请求可被观察，不代表允许直接重放非公开接口。遵守目标网站的授权范围、使用条款及适用规则。
+- 不绕过登录、验证码或风控限制；发现身份或结果无法可靠确认时应暂停或交给人工。
+- 不承诺任何网站的自动化一定成功。复杂业务和写入流程必须在实际环境中验证，敏感凭据与浏览器 Profile 不应提交到公开仓库。
 
-**不要将 8/8 页面检查理解为 Skill 的任务成功率或提效证据。** 这份 Skill 目前是 `v0.1.0` 初始公开版的工程指南，不提供通用运行时，也不保证任何目标站点可用。第三方项目只用于研究方法和已有测试页面，未分发其代码、Skill 文本或命令脚本。见[研究与致谢](REFERENCES.md)。
+## 文档与项目状态
 
-本项目采用 [MIT License](LICENSE) 开源。Copyright (c) 2026 Will。
+- [SKILL.md](skills/web-automation-development/SKILL.md)：核心决策流程及何时读取参考。
+- [页面契约](skills/web-automation-development/references/page-contract.md)：复杂页面的定位、身份、状态及回读证据。
+- [路线探索](skills/web-automation-development/references/route-exploration.md)：API、DOM、视觉路线选择与切换依据。
+- [研究与致谢](REFERENCES.md)：借鉴的上游项目与许可证来源。
 
-**English:** An open-source Agent Skill for reliable web automation development, web scraping, and back-office workflows. It guides coding agents (including Codex) through evidence-driven site exploration, per-operation API/DOM/visual execution routing, page contracts, business-outcome verification, and safe recovery from uncertain writes. Tool-agnostic and designed for minimal, reusable investigation.
+当前公开版本为 [v0.1.0](https://github.com/mingqiangdu1-arch/web-automation-development/releases/tag/v0.1.0)，采用 [MIT License](LICENSE)。在上游公开演示网站上，已有代码生成与独立浏览器回放的验证记录；这些结果**尚不能证明使用 Skill 比不使用更高效或更成功**。自动触发、Agent 自主页面探索、复杂 API/UI 路线和未知写入恢复仍需要真实项目验证。详细记录保留在 [evaluation/](evaluation/) 供开发者审阅，不作为使用门槛。
+
+欢迎通过 [GitHub Issues](https://github.com/mingqiangdu1-arch/web-automation-development/issues) 反馈真实自动化开发场景、失效步骤和脱敏证据。请勿提交 Cookie、令牌、客户数据或私人页面截图。
+
+Copyright (c) 2026 Will.
+
+**English:** A tool-agnostic Agent Skill for developing and maintaining reliable web automation workflows. It guides coding agents through targeted site exploration, per-operation API/DOM/visual routing, business-outcome verification, and safe recovery from uncertain writes. It is an instruction layer—not a browser engine, scraper runtime, or authorization bypass.
