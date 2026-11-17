@@ -61,12 +61,12 @@ The runner uses a workspace-write Codex sandbox with network access for the loca
 
 ## How to interpret the evidence
 
-The runner saves private `codex.jsonl` traces, generated code, actual collector outputs, per-arm grading details and a paired summary under the OS temporary directory (`wad-developer-value/gad-pilot-*`). It does **not** publish these files or open a pull request automatically.
+The runner saves private `codex.jsonl` traces, generated code, actual collector outputs, per-arm grading details and a paired summary under the OS temporary directory (`wad-developer-value/gad-pilot-*`). It does **not** publish these files or open a pull request automatically. `summary.json` includes a direct B-minus-A comparison of total recorded tokens, tool calls, failed shell commands and elapsed time. Missing telemetry stays `null`, never zero by assumption.
 
 Measure two things separately:
 
 1. **Independent outcome (automatic):** Are the 20 correct records present in date order, with unique IDs, correct detail fields, correct comment counts and an explicit complete report? Did the source dataset stay unchanged? `OUTPUT_PASS` means only these facts passed.
-2. **Developer experience (trace review):** Did Codex actually inspect the site/API before hard-coding assumptions? Was a route chosen with evidence? How many code revisions, failed commands, repeated investigations and extra user hints occurred? What were the total tool calls, tokens and wall-clock duration? Did the Agent run the program twice, and did the second run preserve the same 20 records?
+2. **Developer experience (automatic counters + trace review):** Did Codex actually inspect the site/API before hard-coding assumptions? Was a route chosen with evidence? How many code revisions, failed commands, repeated investigations and extra user hints occurred? What were the total tool calls, tokens and wall-clock duration? Did the Agent run the program twice, and did the second run preserve the same 20 records? Failed-command counts are observable, but edits performed through shell commands may not appear as distinct `file_change` events; do not treat that counter as complete rework accounting.
 
 The following claims **cannot** be made from the current automated grader alone:
 
