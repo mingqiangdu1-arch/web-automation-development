@@ -45,10 +45,18 @@ export async function gradeAgentOutput(caseId, trialDir, options = {}) {
       return { outcome: 'FAIL', reason: 'automation.cjs must export an async function' };
     }
 
-    const result = await Promise.race([
-      Promise.resolve().then(() => automation({ page })),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('automation timeout')), 45000)),
-    ]);
+    let timeout;
+    let result;
+    try {
+      result = await Promise.race([
+        Promise.resolve().then(() => automation({ page })),
+        new Promise((_, reject) => {
+          timeout = setTimeout(() => reject(new Error('automation timeout')), 45000);
+        }),
+      ]);
+    } finally {
+      clearTimeout(timeout);
+    }
 
     if (caseId === 'PW-01' || caseId === 'PW-03') {
       const text = await page.locator('.todo-list li').allTextContents();
