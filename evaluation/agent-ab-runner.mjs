@@ -5,9 +5,10 @@ import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { createReadStream, createWriteStream, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, symlinkSync, writeFileSync, cpSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
-import { basename, dirname, join } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createInterface } from 'node:readline';
+import { finished } from 'node:stream/promises';
 
 const evaluationDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = dirname(evaluationDir);
@@ -75,12 +76,13 @@ function buildPrompt(caseId) {
 }
 
 function detectGlobalSkillCollision() {
+  const codexHome = process.env.CODEX_HOME || join(homedir(), '.codex');
   const paths = [
     join(homedir(), '.agents', 'skills', 'web-automation-development', 'SKILL.md'),
-    join(homedir(), '.codex', 'skills', 'web-automation-development', 'SKILL.md'),
+    join(codexHome, 'skills', 'web-automation-development', 'SKILL.md'),
   ];
   const matches = paths.filter(existsSync);
-  const remoteSkills = join(homedir(), '.codex', 'skills', 'remote-skills');
+  const remoteSkills = join(codexHome, 'skills', 'remote-skills');
   if (existsSync(remoteSkills)) {
     for (const entry of readdirSync(remoteSkills, { withFileTypes: true })) {
       if (!entry.isDirectory() || !entry.name.startsWith('skill-')) continue;
@@ -116,8 +118,8 @@ async function preflightBrowser() {
 function runCodex(cwd, prompt, options, tracePath, stderrPath) {
   return new Promise(resolveRun => {
     const args = [
-      'exec', '--json', '--ephemeral', '--ignore-user-config', '--skip-git-repo-check',
-      '-C', cwd, '--full-auto', '-c', `model_reasoning_effort=${options.effort}`,
+      '--ask-for-approval', 'never', 'exec', '--json', '--ephemeral', '--ignore-user-config', '--skip-git-repo-check',
+      '-C', cwd, '--sandbox', 'workspace-write', '-c', `model_reasoning_effort=${options.effort}`,
     ];
     if (options.model) args.push('-m', options.model);
     args.push(prompt);
@@ -133,18 +135,15 @@ function runCodex(cwd, prompt, options, tracePath, stderrPath) {
     child.on('error', error => { errorMessage = error.message; });
     child.on('close', async code => {
       clearTimeout(timer);
-      out.end(); err.end();
-      await Promise.all([
-        new Promise(done => out.on('finish', done)),
-        new Promise(done => err.on('finish', done)),
-      ]);
+      await Promise.all([finished(out), finished(err)]);
       resolveRun({ exitCode: code, timedOut, errorMessage, wallTimeMs: Date.now() - started });
     });
   });
 }
 
-async function parseTrace(path) {
-  const report = { toolCalls: 0, inputTokens: null, outputTokens: null, observedSkillRead: false, events: 0 };
+export async function parseTrace(path, skillText = null) {
+  const report = { toolCalls: 0, inputTokens: null, outputTokens: null, skillReadEvent: null, events: 0 };
+  const skillParagraph = skillText?.split(/\r?\n/).find(line => line.startsWith('description:'));
   const lines = createInterface({ input: createReadStream(path), crlfDelay: Infinity });
   for await (const line of lines) {
     let event;
@@ -154,8 +153,13 @@ async function parseTrace(path) {
     if (event.type === 'item.started' && ['command_execution', 'mcp_tool_call', 'web_search', 'file_change'].includes(item.type)) {
       report.toolCalls += 1;
     }
-    const readSignal = `${item.command ?? ''} ${item.path ?? ''} ${item.text ?? ''}`;
-    if (/web-automation-development[/\\]SKILL\.md/.test(readSignal)) report.observedSkillRead = true;
+    // A filename in a prompt, command error or model answer is not load evidence.
+    if (skillParagraph && event.type === 'item.completed' && item.type === 'command_execution' &&
+        item.exit_code === 0 && /\b(?:Get-Content|cat|type|head|sed)\b/i.test(item.command ?? '') &&
+        /web-automation-development[/\\]SKILL\.md/i.test(item.command ?? '') &&
+        (item.aggregated_output ?? '').includes(skillParagraph)) {
+      report.skillReadEvent ??= item.id ?? report.events;
+    }
     const usage = event.usage ?? event.turn?.usage ?? null;
     if (usage && Number.isFinite(usage.input_tokens)) report.inputTokens = usage.input_tokens;
     if (usage && Number.isFinite(usage.output_tokens)) report.outputTokens = usage.output_tokens;
@@ -181,13 +185,21 @@ async function main() {
   if (collisions.length > 0) throw new Error(`A/B isolation cannot be guaranteed because of user-scope Skills or parent instructions: ${collisions.map(path => basename(path)).join(', ')}. Review isolation before the pilot.`);
   const installed = spawnSync('codex', ['--version'], { encoding: 'utf8' });
   if (installed.status !== 0) throw new Error('Codex CLI unavailable; install and sign in locally before the pilot');
-  if (options.grade) await preflightBrowser();
 
   if (!existsSync(join(evaluationDir, 'node_modules', 'playwright'))) {
     throw new Error('Playwright Node dependency missing: run npm install --prefix evaluation');
   }
   mkdirSync(options.outputRoot, { recursive: true });
   const batchDir = mkdtempSync(join(options.outputRoot, 'pilot-'));
+  const probeDir = mkdtempSync(join(batchDir, 'permission-'));
+  const probe = await runCodex(probeDir,
+    'Use the shell to write exactly WAD_WRITE_OK to permission-probe.txt in your current directory. Do not use any other tools or write elsewhere.',
+    options, join(probeDir, 'codex.jsonl'), join(probeDir, 'codex.stderr.txt'));
+  const probeFile = join(probeDir, 'permission-probe.txt');
+  const writable = probe.exitCode === 0 && existsSync(probeFile) && readFileSync(probeFile, 'utf8').trim() === 'WAD_WRITE_OK';
+  writeFileSync(join(batchDir, 'permission.json'), JSON.stringify({ ...probe, writable }, null, 2));
+  if (!writable) throw new Error(`Workspace write probe blocked; no trials started. Evidence: ${probeDir}`);
+  if (options.grade) await preflightBrowser();
   // Trial code resolves the same dependencies without seeing the evaluation rubric.
   const dependencySource = join(evaluationDir, 'node_modules');
   const dependencyTarget = join(batchDir, 'node_modules');
@@ -208,8 +220,10 @@ async function main() {
     }
     const tracePath = join(trialDir, 'codex.jsonl');
     const stderrPath = join(trialDir, 'codex.stderr.txt');
+    const trialSkillFile = resolve(trialDir, '.agents', 'skills', 'web-automation-development', 'SKILL.md');
+    const skillFilePresent = existsSync(trialSkillFile);
     const execution = await runCodex(trialDir, buildPrompt(trial.caseId), options, tracePath, stderrPath);
-    const telemetry = await parseTrace(tracePath);
+    const telemetry = await parseTrace(tracePath, skillFilePresent ? readFileSync(trialSkillFile, 'utf8') : null);
     let grade = { outcome: 'BLOCKED', reason: execution.timedOut ? 'Codex timed out' : `Codex failed (exit ${execution.exitCode})` };
     if (execution.exitCode === 0) {
       grade = { outcome: 'INCONCLUSIVE', reason: 'Generated code not executed; pass --grade only in a disposable isolated environment' };
@@ -218,10 +232,16 @@ async function main() {
         grade = await gradeAgentOutput(trial.caseId, trialDir, { browserExecutable: process.env.WAD_BROWSER_EXECUTABLE });
       }
     }
+    if (execution.exitCode === 0 && !existsSync(join(trialDir, 'automation.cjs'))) {
+      grade = { outcome: 'INCONCLUSIVE', reason: 'CLI completed, but no automation artifact was produced' };
+    }
     const result = {
       ...trial, source: cases[trial.caseId].source, outcome: grade.outcome, reason: grade.reason,
-      observed: grade.observed ?? null, skillAvailable: trial.arm === 'B',
-      actualSkillLoaded: telemetry.observedSkillRead ? 'YES (trace read)' : 'INCONCLUSIVE',
+      observed: grade.observed ?? null, skillFilePresent,
+      skillLoaded: telemetry.skillReadEvent !== null ? 'OBSERVED_READ' : 'INCONCLUSIVE',
+      skillLoadEvidence: telemetry.skillReadEvent === null ? null :
+        { kind: 'successful-command-with-skill-content', event: telemetry.skillReadEvent },
+      skillRulesFollowed: 'NOT_ASSESSED',
       codexExitCode: execution.exitCode, timedOut: execution.timedOut, errorMessage: execution.errorMessage,
       toolCalls: telemetry.toolCalls, tokens: telemetry.inputTokens === null ? null : {
         input: telemetry.inputTokens, output: telemetry.outputTokens,
@@ -231,12 +251,12 @@ async function main() {
     writeFileSync(join(trialDir, 'result.json'), JSON.stringify(result, null, 2));
     batch.trials.push(result);
     writeFileSync(join(batchDir, 'summary.json'), JSON.stringify(batch, null, 2));
-    process.stdout.write(`${trial.caseId} ${trial.arm} #${trial.repeat}: ${result.outcome} (${result.wallTimeMs}ms; skill read ${result.actualSkillLoaded})\n`);
+    process.stdout.write(`${trial.caseId} ${trial.arm} #${trial.repeat}: ${result.outcome} (${result.wallTimeMs}ms; file ${result.skillFilePresent}; load ${result.skillLoaded}; rules ${result.skillRulesFollowed})\n`);
   }
   process.stdout.write(`Private evidence saved under ${batchDir}\n`);
 }
 
-main().catch(error => {
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main().catch(error => {
   process.stderr.write(`A/B pilot not started/completed: ${String(error)}\n`);
   process.exitCode = 1;
 });
