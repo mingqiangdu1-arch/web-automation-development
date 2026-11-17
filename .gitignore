@@ -9,3 +9,4 @@ test-results/
 .playwright-cli/
 storage-state*.json
 browser-profile*/
+evaluation/node_modules/
