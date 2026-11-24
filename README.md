@@ -78,7 +78,7 @@ Skill 本身**没有必装依赖**，也不会替你安装或启动浏览器。�
 - [路线探索](skills/web-automation-development/references/route-exploration.md)：API、DOM、视觉路线选择与切换依据。
 - [研究与致谢](REFERENCES.md)：借鉴的上游项目与许可证来源。
 
-当前公开版本为 [v0.1.1](https://github.com/mingqiangdu1-arch/web-automation-development/releases/tag/v0.1.1)，采用 [MIT License](LICENSE)。在上游公开演示网站上，已有代码生成与独立浏览器回放的验证记录；这些结果**尚不能证明使用 Skill 比不使用更高效或更成功**。自动触发、Agent 自主页面探索、复杂 API/UI 路线和未知写入恢复仍需要真实项目验证。详细记录保留在 [evaluation/](evaluation/) 供开发者审阅，不作为使用门槛。
+当前公开版本为 [v0.1.2](https://github.com/mingqiangdu1-arch/web-automation-development/releases/tag/v0.1.2)，采用 [MIT License](LICENSE)。在上游公开演示网站上，已有代码生成与独立浏览器回放的验证记录；这些结果**尚不能证明使用 Skill 比不使用更高效或更成功**。自动触发、Agent 自主页面探索、复杂 API/UI 路线和未知写入恢复仍需要真实项目验证。详细记录保留在 [evaluation/](evaluation/) 供开发者审阅，不作为使用门槛。
 
 欢迎通过 [GitHub Issues](https://github.com/mingqiangdu1-arch/web-automation-development/issues) 反馈真实自动化开发场景、失效步骤和脱敏证据。请勿提交 Cookie、令牌、客户数据或私人页面截图。
 
